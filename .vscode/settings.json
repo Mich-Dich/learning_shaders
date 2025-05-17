@@ -1,0 +1,10 @@
+{
+    "emeraldwalk.runonsave": {
+    "commands": [
+        {
+        "match": "\\.(frag|vert)$",
+        "cmd": "cp \"${file}\" \"${workspaceFolder}/glsl_viewer_main.frag\""
+        }
+    ]
+    }
+}
