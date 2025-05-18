@@ -10,25 +10,7 @@ uniform float u_time;
 const float PI = 3.14159265359;
 const float TWO_PI = 6.28318530718;
 
-mat3 rotationMatrix(vec3 axis, float angle) {
-    axis = normalize(axis);
-    float s = sin(angle);
-    float c = cos(angle);
-    float oc = 1.0 - c;
-    return mat3(
-        oc*axis.x*axis.x + c,
-        oc*axis.x*axis.y - axis.z*s,
-        oc*axis.z*axis.x + axis.y*s,
-
-        oc*axis.x*axis.y + axis.z*s,
-        oc*axis.y*axis.y + c,
-        oc*axis.y*axis.z - axis.x*s,
-
-        oc*axis.z*axis.x - axis.y*s,
-        oc*axis.y*axis.z + axis.x*s,
-        oc*axis.z*axis.z + c
-    );
-}
+// ------------------ UTILS ------------------
 
 mat3 transpose_mat3(mat3 m) {
     return mat3(
@@ -36,6 +18,39 @@ mat3 transpose_mat3(mat3 m) {
         m[0][1], m[1][1], m[2][1],
         m[0][2], m[1][2], m[2][2]
     );
+}
+
+vec2 hash(vec2 p) {
+    p = vec2(dot(p,vec2(127.1,311.7)),
+             dot(p,vec2(269.5,183.3)));
+    return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+}
+float perlin2D(vec2 p){
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f*f*(3.0-2.0*f);
+    float a = dot(hash(i + vec2(0.0,0.0)), f - vec2(0.0,0.0));
+    float b = dot(hash(i + vec2(1.0,0.0)), f - vec2(1.0,0.0));
+    float c = dot(hash(i + vec2(0.0,1.0)), f - vec2(0.0,1.0));
+    float d = dot(hash(i + vec2(1.0,1.0)), f - vec2(1.0,1.0));
+    return mix(mix(a,b,u.x), mix(c,d,u.x), u.y);
+}
+
+// Fractal Brownian Motion (fBm) for richer terrain
+float fbm(vec2 p){
+    float v = 0.0;
+    float amp = 0.5;
+    for(int i = 0; i < 5; i++){
+        v += amp * perlin2D(p);
+        p *= 2.0;
+        amp *= 0.5;
+    }
+    return v;
+}
+
+vec3 op_rep_XZ(vec3 p, vec2 c) {
+    vec2 q = mod(p.xz, c) - 0.5*c;
+    return vec3(q.x, p.y, q.y);
 }
 
 // ------------------ SDFs ------------------
@@ -121,6 +136,22 @@ vec3 op_twist(vec3 point, float angle) {
     return vec3(m * point.xz, point.y);
 }
 
+float smin( float a, float b, float k ) {
+    float h = clamp( 0.5 + 0.5*(b - a)/k, 0.0, 1.0 );
+    return mix( b, a, h ) - k*h*(1.0 - h);
+}
+
+// Smooth max via the identity max(a,b) = -min(-a,-b)
+float smax( float a, float b, float k ) {
+    return -smin( -a, -b, k );
+}
+
+// Now smooth subtraction: smoothly subtract B from A
+float op_smooth_subtract( float d1, float d2, float k ) {
+    // subtract = max( d1, -d2 ), so we do smooth max with -d2
+    return smax( d1, -d2, k );
+}
+
 // ------------------ MAP ------------------
 
 float map(vec3 point) {
@@ -137,18 +168,32 @@ float map(vec3 point) {
     // float plane = dot(point, vec3(0,1,0)) + 1.0;
     // return op_union(body, plane);
 
-    float d_torso   = sd_sphere(point - vec3(0.0, 1.0, 2.0),  0.6);
-    float d_head    = sd_sphere(point - vec3(0.0, 2.1, 2.0),  0.4);
-    float d_sho_l   = sd_sphere(point - vec3(-0.7, 1.4, 2.0), 0.25);
-    float d_sho_r   = sd_sphere(point - vec3( 0.7, 1.4, 2.0), 0.25);
-    float d_arm_l   = sd_sphere(point - vec3(-0.98,1.04,2.000), 0.20);
-    float d_arm_l_1 = sd_sphere(point - vec3(-1.4,0.58,2.000), 0.20);
-    float d_arm_r   = sd_sphere(point - vec3( 0.98,1.04,2.0), 0.20);
-    float d_arm_r_1 = sd_sphere(point - vec3( 1.4,0.58,2.0), 0.20);
-    float d_hip_l   = sd_sphere(point - vec3(-0.3, 0.3, 2.0),  0.30);
-    float d_hip_r   = sd_sphere(point - vec3( 0.3, 0.3, 2.0),  0.30);
-    float d_leg_l   = sd_sphere(point - vec3(-0.3, -0.4, 2.0), 0.25);
-    float d_leg_r   = sd_sphere(point - vec3( 0.3, -0.4, 2.0), 0.25);
+
+#define REPEAT
+#ifdef REPEAT
+
+    vec3 point_rep = vec3(0.);
+    if (max(sin(u_time * .45), 0.) > 0.) {
+
+        point_rep = op_rep_XZ(point, vec2(20.0));
+    } else
+        point_rep = point;
+
+#else
+    vec3 point_rep = point;
+#endif
+    float d_torso   = sd_sphere(point_rep - vec3(0.0, 1.0, 2.0),  0.6);
+    float d_head    = sd_sphere(point_rep - vec3(0.0, 2.1, 2.0),  0.4);
+    float d_sho_l   = sd_sphere(point_rep - vec3(-0.7, 1.4, 2.0), 0.25);
+    float d_sho_r   = sd_sphere(point_rep - vec3( 0.7, 1.4, 2.0), 0.25);
+    float d_arm_l   = sd_sphere(point_rep - vec3(-0.98,1.04,2.000), 0.20);
+    float d_arm_l_1 = sd_sphere(point_rep - vec3(-1.4,0.58,2.000), 0.20);
+    float d_arm_r   = sd_sphere(point_rep - vec3( 0.98,1.04,2.0), 0.20);
+    float d_arm_r_1 = sd_sphere(point_rep - vec3( 1.4,0.58,2.0), 0.20);
+    float d_hip_l   = sd_sphere(point_rep - vec3(-0.3, 0.3, 2.0),  0.30);
+    float d_hip_r   = sd_sphere(point_rep - vec3( 0.3, 0.3, 2.0),  0.30);
+    float d_leg_l   = sd_sphere(point_rep - vec3(-0.3, -0.4, 2.0), 0.25);
+    float d_leg_r   = sd_sphere(point_rep - vec3( 0.3, -0.4, 2.0), 0.25);
 
     float k = 0.45;
     float humanoid = op_smooth_union(d_torso, d_head, k);
@@ -161,18 +206,29 @@ float map(vec3 point) {
     humanoid = op_smooth_union(humanoid, d_leg_l, k);
     humanoid = op_smooth_union(humanoid, d_leg_r, k);
 
+    // humanoid = op_rep_XZ();
+
     float hole = sd_cylinder_rotated(point - vec3(0.0, 1.0 + sin(u_time) * .2, 1.6), vec2(0.2, 2.), vec3(11., sin(u_time * 2.) * .2, 0.));
     humanoid = op_subtract(humanoid, hole);
 
-    float d_floor = sd_plane(point, vec3(0.0, 1.0, 0.0), 0.0);
-    return op_union(humanoid, d_floor);
+    // float d_floor = sd_plane(point, vec3(0.0, 1.0, 0.0), 0.0);
+    // return op_union(humanoid, d_floor);
+
+    float height = fbm(point.xz * 0.075) * 3.9;
+    float d_ground = point.y - height;
+
+    float crator = sd_sphere(point - vec3( 29.3, 0., 20.0), 25.);
+    d_ground = op_smooth_subtract(d_ground, crator, 10.);
+    humanoid = op_subtract(humanoid, crator);
+
+    return op_smooth_union(humanoid, d_ground, 0.75);
 }
 
 // ------------------ SPHERE TRACING ------------------
 
 const int       MAX_STEPS = 100;
-const float     EPSILON = 0.001;
-const float     MAX_DIST = 100.0;
+const float     EPSILON = 0.005;
+const float     MAX_DIST = 150.0;
 
 struct ray {
     vec3 origin;
@@ -203,7 +259,7 @@ void main() {
 
     ray cam_ray = create_camera_ray(gl_FragCoord.xy);
 #ifdef ANIMATE_CAMERA
-    float factor = abs(sin(u_time * .25) * 23.);
+    float factor = max(sin(u_time * .45) * 30., 0.);
     vec3 camera_pos = vec3(0., 1. + factor * .5, -1. - factor);
     vec3 light_pos = vec3(1., vec2(factor * .5));
 #else
