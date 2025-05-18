@@ -144,7 +144,6 @@ vec3 cone_normal(int index, vec3 P_world) {
     return normalize(n);
 }
 
-
 // ------------- RAY TRACING - MAIN -------------
 
 ray_intersection trace_diffuse(ray ray) {
@@ -192,7 +191,7 @@ void main() {
     shapes[0] = shape(0, vec3( 2.0, 1.0 + 0.5 * sin(u_time * 2.0), 5.0),                            vec2(1.0,       0.),    vec3(1.0, 0.2, 0.2),    .8);
     shapes[1] = shape(0, vec3( 1.5 * cos(u_time * 1.5) + 1.5, 0.5, 4.0 + 0.3 * sin(u_time * 1.5)),  vec2(0.8,       0.),    palette(u_time),        .0);
     shapes[2] = shape(0, vec3(-1.0, 0.7 + 0.7 * cos(u_time), 6.0),                                  vec2(1.2,       0.),    palette(u_time + 1.),   .1);
-    shapes[3] = shape(0, vec3( 0.0, -1001.0, 5.0),                                                  vec2(1000.0,    0.),    vec3(0.8, 0.8, 0.2),    .2);
+    shapes[3] = shape(0, vec3( 0.0, -2001.0, 5.0),                                                  vec2(2000.0,    0.),    vec3(0.1),              .2);
     shapes[4] = shape(0, vec3(-1.5 + 0.5 * sin(u_time * 0.8), 1.5, 3.5 + 0.5 * cos(u_time * 0.8)),  vec2(0.5,       0.),    vec3(1.0, 0.8, 0.2),    .9);
     shapes[4] = shape(1, vec3(-1.5 + 0.5 * sin(u_time * 0.8), .0, 2.5 + 0.5 * cos(u_time * 0.8)),   vec2(0.5,       1.),    vec3(1.0, 0.8, 0.2),    .9);
 
