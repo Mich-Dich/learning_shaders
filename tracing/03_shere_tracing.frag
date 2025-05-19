@@ -154,34 +154,24 @@ float op_smooth_subtract( float d1, float d2, float k ) {
 
 // ------------------ MAP ------------------
 
-float map(vec3 point) {
-
-    // vec3 p = op_twist(point, 1.1);
-    // float d0 = sd_sphere(p - vec3(0.0, 1.0, 3.0), 1.0);
-    // float d1 = sd_torus(p - vec3(0.0, 1.0, 3.0), vec2(1.5, 0.3));
-    // float d2 = sd_box(p - vec3(0.0, -0.5, 3.0), vec3(2.5, 0.2, 2.5));
-    // float d3 = sd_cylinder(p - vec3(0.0, 0.0, 3.0), vec2(0.2, 1.0));
-    // float blend0 = op_smooth_union(d0, d1, 0.4);
-    // float body = min(blend0, d2);
-    // body = min(body, d3);
-
-    // float plane = dot(point, vec3(0,1,0)) + 1.0;
-    // return op_union(body, plane);
-
+vec3 rep_point(vec3 point) {
 
 #define REPEAT
 #ifdef REPEAT
-
-    vec3 point_rep = vec3(0.);
-    if (max(sin(u_time * .45), 0.) > 0.) {
-
-        point_rep = op_rep_XZ(point, vec2(20.0));
-    } else
-        point_rep = point;
-
+    if (max(sin(u_time * .45), 0.) > 0.)
+        return op_rep_XZ(point, vec2(20.0));
+    
+    else
+        return point;
 #else
-    vec3 point_rep = point;
+    return point;
 #endif
+}
+
+float humanoid_shape(vec3 point) {
+
+    vec3 point_rep = rep_point(point);
+
     float d_torso   = sd_sphere(point_rep - vec3(0.0, 1.0, 2.0),  0.6);
     float d_head    = sd_sphere(point_rep - vec3(0.0, 2.1, 2.0),  0.4);
     float d_sho_l   = sd_sphere(point_rep - vec3(-0.7, 1.4, 2.0), 0.25);
@@ -204,12 +194,33 @@ float map(vec3 point) {
     humanoid = op_smooth_union(humanoid, d_hip_l, k);
     humanoid = op_smooth_union(humanoid, d_hip_r, k);
     humanoid = op_smooth_union(humanoid, d_leg_l, k);
-    humanoid = op_smooth_union(humanoid, d_leg_r, k);
+    return op_smooth_union(humanoid, d_leg_r, k);
+}
 
-    // humanoid = op_rep_XZ();
+float map(vec3 point) {
+
+    // vec3 p = op_twist(point, 1.1);
+    // float d0 = sd_sphere(p - vec3(0.0, 1.0, 3.0), 1.0);
+    // float d1 = sd_torus(p - vec3(0.0, 1.0, 3.0), vec2(1.5, 0.3));
+    // float d2 = sd_box(p - vec3(0.0, -0.5, 3.0), vec3(2.5, 0.2, 2.5));
+    // float d3 = sd_cylinder(p - vec3(0.0, 0.0, 3.0), vec2(0.2, 1.0));
+    // float blend0 = op_smooth_union(d0, d1, 0.4);
+    // float body = min(blend0, d2);
+    // body = min(body, d3);
+
+    // float plane = dot(point, vec3(0,1,0)) + 1.0;
+    // return op_union(body, plane);
+
+    vec3 point_rep = rep_point(point);
+
+    float dist_humanoid_bounds = sd_box(point_rep, vec3(0.5, 2.0, 0.5));
+
+    float humanoid = 10.;
+    if (dist_humanoid_bounds < 3.)
+        humanoid = humanoid_shape(point);
 
     float hole = sd_cylinder_rotated(point - vec3(0.0, 1.0 + sin(u_time) * .2, 1.6), vec2(0.2, 2.), vec3(11., sin(u_time * 2.) * .2, 0.));
-    humanoid = op_subtract(humanoid, hole);
+    humanoid = op_smooth_subtract(humanoid, hole, .05);
 
     // float d_floor = sd_plane(point, vec3(0.0, 1.0, 0.0), 0.0);
     // return op_union(humanoid, d_floor);
@@ -284,7 +295,7 @@ void main() {
         // if (dist < EPSILON) gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
         // else gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
 
-        if (dist < EPSILON) {
+        if (dist < EPSILON + dist * .5)  {
 
             vec3 normal = gestimate_normal(point);
             vec3 L = normalize(light_pos - point);
